@@ -50,3 +50,7 @@ ADD docker/install_r_dependencies.R /opt/setup_config/
 
 RUN echo 'cache = broken'
 RUN Rscript /opt/setup_config/install_r_dependencies.R
+
+# set environment vars for GRASS
+ENV PYTHONPATH /usr/lib/grass74/etc/python
+ENV GISBASE /usr/lib/grass74
