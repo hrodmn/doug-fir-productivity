@@ -39,3 +39,43 @@ ggplot(data = trees, aes(x = dbh.2014, y = rad.inc, color = stand)) +
 	scale_color_manual(values = standPalette)
 
 ```
+
+```{r increment}
+plotSum <- trees %>%
+	select(stand, plot_id, species, exp, dbh.2014, dbh.2009) %>%
+	gather(year, dbh, contains("dbh")) %>%
+	mutate(year = gsub("dbh.", "", year)) %>%
+	group_by(stand, plot_id, year) %>%
+	summarize(
+		tph = sum(exp),
+		baph = sum(exp * 0.000078539 * dbh^2)
+	) %>%
+	mutate(
+		qmd = sqrt(baph / tph / 0.000078539),
+		sdi = tph * (qmd / 25)^1.605
+	)
+
+plotsInc <- plotSum %>%
+	gather(attr, value, one_of("tph", "baph", "qmd", "sdi")) %>%
+	mutate(attrYear = paste(attr, year, sep = "_")) %>%
+	select(stand, plot_id, attrYear, value) %>%
+	spread(attrYear, value) %>%
+	mutate(
+		baInc = baph_2014 - baph_2009,
+		baPai = (baph_2014 - baph_2009) / (2014 - 2009),
+		baPri = 100 * log(baph_2014 / baph_2009) / (2014 - 2009)
+	) %>%
+	ungroup() %>%
+	mutate(
+		baIncSmooth = predict(loess(baInc ~ baph_2009, data = .),
+		baIncDetrend = baInc / baIncSmooth)
+	)
+
+ggplot(data = plotSum, aes(x = qmd, fill = stand)) +
+ 	geom_histogram() +
+	scale_fill_manual(values = standPalette) +
+	facet_wrap(~year) +
+	theme_bw()+
+	theme(legend.direction = "horizontal", legend.position = "bottom")
+```
+
