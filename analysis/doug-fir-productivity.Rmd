@@ -1,0 +1,15 @@
+```{r libraries}
+# load packages necessary for analysis
+library(tidyverse)
+library(sf)
+library(rgrass7)
+library(wesanderson)
+library(RSAGA)
+
+theme_set(theme_bw())
+standPalette <- c(
+	wes_palette("Moonrise3")[1:5],
+	wes_palette("Cavalcanti1")[4]
+)
+```
+
