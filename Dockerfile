@@ -45,3 +45,8 @@ RUN wget https://bootstrap.pypa.io/get-pip.py \
     && python -m ipykernel install --user \
     && pip install jupyter
 
+RUN mkdir -p /opt/setup_config
+ADD docker/install_r_dependencies.R /opt/setup_config/
+
+RUN echo 'cache = broken'
+RUN Rscript /opt/setup_config/install_r_dependencies.R
