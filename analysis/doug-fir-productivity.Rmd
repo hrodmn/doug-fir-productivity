@@ -294,3 +294,86 @@ plotTopo <- plotLocs %>%
 	)
 
 ```
+
+```{r canopyHeight}
+canHt2009File <- "../doug-fir-productivity/data/rasters/canht2009.tif"
+canHt2012File <- "../doug-fir-productivity/data/rasters/canht2012.tif"
+canHt2015File <- "../doug-fir-productivity/data/rasters/canht2015.tif"
+
+canHt2009 <- raster::raster(canHt2009File)
+canHt2012 <- raster::raster(canHt2012File)
+canHt2015 <- raster::raster(canHt2015File)
+
+ht_q95 <- function(x) {
+	quantile(x, probs = 0.95,
+					 na.rm = TRUE)
+}
+
+compute_king_si <- function(ht, age) {
+	0.3048 * ((2500 / (((age - 7)^2 / ((ht / 0.3048 - 4.5) +
+	0.954038 - 0.0558178 * (age - 7) +
+	0.000733819 * (age - 7)^2)) / (0.109757 + 0.00792236 * (age - 7) +
+	0.000197693 * (age - 7)^2))) + 4.5)
+}
+
+estimate_ht_growth <- function(si, age, years) {
+  si.ft <- si / 0.3048
+  
+  a1 <- 2500
+  a2 <- -0.954038
+  a3 <- 0.0558178
+  a4 <- -0.000733819
+  a5 <- 0.109757
+  a6 <- 0.00792236
+  a7 <- 0.000197693
+  
+  x1 <- a2 + a5 * (a1 / (si.ft - 4.5))
+  x2 <- a3 + a6 * (a1 / (si.ft - 4.5))
+  x3 <- a4 + a7 * (a1 / (si.ft - 4.5))
+  
+  h0 <- 4.5 + age^2 / (x1 + x2 * age + x3 * age^2)
+  h1 <- 4.5 + (age + years)^2 / (x1 + x2 * (age + years) + x3 * (age + years)^2)
+  
+  (h1 - h0) * .3048
+}
+
+plotCanHt <- plotLocs %>%
+	mutate(
+		canHt2009 = raster::extract(
+			x = canHt2009,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = ht_q95
+		),
+		canHt2012 = raster::extract(
+			x = canHt2012,
+		  y = as(., "Spatial"),
+		  buffer = radius,
+		  fun = ht_q95
+		),
+	  canHt2015 = raster::extract(
+			x = canHt2015,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = ht_q95
+		)
+	)
+
+plotSI <- data.frame(plotCanHt)	%>%
+	select(plot_id = plot, contains("canHt"), bh.age) %>%
+	mutate(
+		siK95_2009 = compute_king_si(age = bh.age - 6, ht = canHt2009),
+		siK95_2012 = compute_king_si(age = bh.age - 3, ht = canHt2012),
+		siK95_2015 = compute_king_si(age = bh.age, ht = canHt2015)
+	) %>%
+	mutate(
+		htIncPred_09_12 = estimate_ht_growth(
+			si = siK95_2009, age = bh.age - 6, years = 3
+		),
+		htIncPred_12_15 = estimate_ht_growth(
+			si = siK95_2012, age = bh.age - 3, years = 3
+		)
+	)
+
+```
+
