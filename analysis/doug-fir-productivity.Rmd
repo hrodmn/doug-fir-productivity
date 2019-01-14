@@ -95,3 +95,202 @@ plotLocs <- st_as_sf(plots, coords = c("x", "y"), crs = 26910)
 
 ```
 
+```{r rasters}
+demFile <- "/opt/doug-fir-productivity/data/rasters/dem.tif"
+dem <- raster::raster(demFile)
+
+# GRASS #
+initGRASS(
+  gisBase = "/usr/lib/grass74/",
+	home = tempdir(),
+	mapset = "PERMANENT",
+  override = T
+)
+      
+execGRASS("g.proj", flags = "c", epsg = 26910)
+
+## initialize new mapset inheriting projection info
+execGRASS("g.mapset", flags = "c", mapset = "df")
+
+# import raster to GRASS
+execGRASS(
+	"r.in.gdal",
+	parameters = list(input = demFile, output = "dem"),
+	flags = c("overwrite")
+)
+
+execGRASS("g.region", parameters = list(raster = "dem"))
+
+execGRASS(
+	"r.slope.aspect",
+	parameters = list(
+		elevation = "dem",
+		slope = "slope",
+		aspect = "aspect",
+		format = "percent",
+		pcurvature = "pcurvature",
+		tcurvature = "tcurvature"
+	),
+	flags = c("overwrite")
+)
+
+execGRASS(
+	"r.topidx",
+	parameters = list(input = "dem", output = "topidx"),
+	flags = c("overwrite")
+)
+
+execGRASS(
+	"r.mapcalc",
+	expression = "stage1 = slope * cos(aspect)",
+	flags = c("overwrite")
+)
+
+execGRASS(
+	"r.mapcalc",
+	expression="stage2 = slope * sin(aspect)",
+	flags = c("overwrite")
+)
+
+topidxFile <- "/opt/doug-fir-productivity/data/rasters/topidx.tif"
+slopeFile <- "/opt/doug-fir-productivity/data/rasters/slope.tif"
+aspectFile <- "/opt/doug-fir-productivity/data/rasters/aspect.tif"
+pcurvatureFile <- "/opt/doug-fir-productivity/data/rasters/pcurvature.tif"
+tcurvatureFile <- "/opt/doug-fir-productivity/data/rasters/tcurvature.tif"
+stage1File <- "/opt/doug-fir-productivity/data/rasters/stage1.tif"
+stage2File <- "/opt/doug-fir-productivity/data/rasters/stage2.tif"
+
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "slope", output = slopeFile)
+)
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "aspect", output = aspectFile)
+)
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "pcurvature", output = pcurvatureFile)
+)
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "tcurvature", output = tcurvatureFile)
+)
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "stage1", output = stage1File)
+)
+execGRASS(
+	"r.out.gdal",
+	parameters = list(input = "stage2", output = stage2File)
+)
+
+# perform terrain analysis using SAGA
+sagaenv = rsaga.env() # locate SAGA_cmd.exe, allows SAGA modules to be called by R
+
+demSaga = rsaga.import.gdal(
+	in.grid = demFile, # imports DEM for use by SAGA
+	env=sagaenv
+)
+
+# parameters: absolute catchment area, local slope
+rsaga.wetness.index(
+	in.dem = "/opt/doug-fir-productivity/data/rasters/dem.sgrd",
+	out.wetness.index = "/opt/doug-fir-productivity/data/rasters/twi.sgrd",
+	area.type = 0,
+	slope.type = 0,
+	env = sagaenv
+)
+
+# calculates topographic position index (TPI)
+rsaga.get.modules()
+
+rsaga.geoprocessor(
+	lib = "ta_morphometry",
+	module = 18,
+	param = list(
+		DEM = "/opt/doug-fir-productivity/data/rasters/dem.sgrd",
+		TPI = "/opt/doug-fir-productivity/data/rasters/tpi300r.sgrd",
+		STANDARD = TRUE,
+		RADIUS_MIN = 0,
+		RADIUS_MAX = 300,
+		DW_WEIGHTING = 0,
+		DW_IDW_POWER = 1,
+		DW_IDW_OFFSET = TRUE,
+		DW_BANDWIDTH = 75
+	),
+	invisible = FALSE,
+	display.command = TRUE,
+	env = sagaenv
+)
+
+rsaga.geoprocessor(
+	lib = "ta_morphometry",
+	module = 19, # TPI based landform classification
+	param = list(
+		DEM = "/opt/doug-fir-productivity/data/rasters/dem100.sgrd",
+		LANDFORMS="/opt/doug-fir-productivity/data/rasters/landform.sgrd",
+		RADIUS_A_MIN = 0,
+		RADIUS_A_MAX = 300,
+		RADIUS_B_MIN = 300,
+		RADIUS_B_MAX = 1500,
+		DW_WEIGHTING = 0,
+		DW_IDW_POWER = 1,
+		DW_IDW_OFFSET = TRUE,
+		DW_BANDWIDTH = 75
+	),
+	invisible = FALSE,
+	display.command = TRUE,
+	env = sagaenv
+)
+
+
+topidx <- raster::raster(topidxFile)
+slope <- raster::raster(slopeFile)
+aspect <- raster::raster(aspectFile)
+tcurvature <- raster::raster(tcurvatureFile)
+pcurvature <- raster::raster(pcurvatureFile)
+stage1 <- raster::raster(stage1File)
+stage2 <- raster::raster(stage2File)
+
+plotTopo <- plotLocs %>%
+	mutate(
+		topidx = raster::extract(
+			x = topidx,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = mean
+		),
+		slope = raster::extract(
+			x = slope,
+ 			y = as(., "Spatial"),
+			buffer = radius,
+			fun = mean
+		),
+		aspect = raster::extract(
+			x = aspect,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = median
+		),
+		stage1 = raster::extract(
+			x = stage1,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = mean
+		),
+		stage2 = raster::extract(
+			x = stage2,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = mean
+		),
+		elev = raster::extract(
+			x = dem,
+			y = as(., "Spatial"),
+			buffer = radius,
+			fun = mean
+		)
+	)
+
+```
