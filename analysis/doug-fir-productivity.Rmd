@@ -79,3 +79,19 @@ ggplot(data = plotSum, aes(x = qmd, fill = stand)) +
 	theme(legend.direction = "horizontal", legend.position = "bottom")
 ```
 
+```{r plotLocs}
+# read texture key file that provides mineral soil compositions for each texture classification
+soilFile <- "/opt/doug-fir-productivity/data/texturekey_rawls1998.csv"
+texture <-  read.csv(soilFile) %>%
+	select(-X)
+
+# read plot locations
+plotFile <- "/opt/doug-fir-productivity/data/plots.csv"
+plots <- read.csv(plotFile) %>%
+	left_join(texture, by = "texture") %>%
+	mutate(stand = as.factor(as.character(stand)))
+
+plotLocs <- st_as_sf(plots, coords = c("x", "y"), crs = 26910)
+
+```
+
