@@ -6,6 +6,7 @@ MAINTAINER Henry Rodman <henry.rodman@gmail.com>
 RUN sh -c 'echo "deb http://cran.rstudio.com/bin/linux/ubuntu xenial/" >> \
     /etc/apt/sources.list'
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E084DAB9
+
 # Install system packages
 RUN apt-get update && \
 
@@ -36,3 +37,11 @@ RUN apt-get update && \
     wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Get latest version of pip, configure jupyter
+RUN wget https://bootstrap.pypa.io/get-pip.py \
+    && python get-pip.py \
+    && python -m pip install ipykernel \
+    && python -m ipykernel install --user \
+    && pip install jupyter
+
