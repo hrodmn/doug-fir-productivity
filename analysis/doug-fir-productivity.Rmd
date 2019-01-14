@@ -13,3 +13,29 @@ standPalette <- c(
 )
 ```
 
+```{r trees}
+# read tree observation data
+rawTrees <- read.csv("/opt/doug-fir-productivity/data/trees.csv")
+
+trees <- rawTrees %>%
+	mutate(
+		plot_id = paste(stand, plot, sep = "-"),
+		stand = as.factor(as.character(stand))
+	) %>%
+	mutate(
+		rad.incPred = predict(
+			lm(rad.inc ~ dbh.2014, data = .),
+			newdata = .
+		),
+		rad.inc = case_when(
+			!is.na(rad.inc) ~ rad.inc,
+			is.na(rad.inc) ~ rad.incPred
+		)
+	) %>%
+	mutate(dbh.2009 = dbh.2014 - 2 * rad.inc / 10)
+
+ggplot(data = trees, aes(x = dbh.2014, y = rad.inc, color = stand)) +
+	geom_point() +
+	scale_color_manual(values = standPalette)
+
+```
