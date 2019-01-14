@@ -377,3 +377,11 @@ plotSI <- data.frame(plotCanHt)	%>%
 
 ```
 
+```{r}
+# add geographic, topographic, and soil attributes to plot summary table
+trainingData <- plotsInc %>%
+	left_join(plotTopo) %>%
+	left_join(plotSI)
+
+```
+
